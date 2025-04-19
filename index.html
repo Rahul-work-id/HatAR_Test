@@ -128,7 +128,12 @@
 
             hairMesh = new BABYLON.Mesh("hair", scene);
             vertexData.applyToMesh(hairMesh);
-
+            
+            const hairMaterial = new BABYLON.StandardMaterial("hairMat", scene);
+            hairMaterial.diffuseColor = new BABYLON.Color3(1, 0.5, 0.5); // Optional: change color
+            hairMaterial.backFaceCulling = false; // This makes both sides visible
+            hairMesh.material = hairMaterial;
+            
             hairMesh.scaling = new BABYLON.Vector3(0.1, 0.1, 0.1);
         }
 
