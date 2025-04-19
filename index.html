@@ -67,7 +67,7 @@
 
             console.log("Decoded Mesh3d message:", message);
 
-            if (!message.vertex_buffer || !message.index_buffer) {
+            if (!message.vertexBuffer || !message.indexBuffer) {
                 console.error("Model missing vertex_buffer or index_buffer");
                 return;
             }
