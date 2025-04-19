@@ -110,7 +110,7 @@
         });
 
 
-        const marker = BABYLON.MeshBuilder.CreateSphere("marker", { diameter: 0.01 }, scene);
+        const marker = BABYLON.MeshBuilder.CreateSphere("marker", { diameter: 1 }, scene);
 
         faceMesh.onResults((results) => {
             if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0 || !hairMesh) return;
