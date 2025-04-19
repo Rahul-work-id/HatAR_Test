@@ -76,13 +76,13 @@
             const indices = [];
             const stride = 5;
 
-            const buffer = message.vertex_buffer;
+            const buffer = message.vertexBuffer;
             for (let i = 0; i < buffer.length; i += stride) {
                 positions.push(buffer[i], buffer[i + 1], buffer[i + 2]);
             }
 
-            for (let i = 0; i < message.index_buffer.length; i += 3) {
-                indices.push(message.index_buffer[i], message.index_buffer[i + 1], message.index_buffer[i + 2]);
+            for (let i = 0; i < message.indexBuffer.length; i += 3) {
+                indices.push(message.indexBuffer[i], message.indexBuffer[i + 1], message.indexBuffer[i + 2]);
             }
 
             const vertexData = new BABYLON.VertexData();
