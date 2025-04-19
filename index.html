@@ -1,150 +1,173 @@
 <!DOCTYPE html>
 <html lang="en">
+
 <head>
-  <meta charset="UTF-8" />
-  <title>Hair AR</title>
-  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
-  <style>
-    html, body {
-      margin: 0;
-      padding: 0;
-      overflow: hidden;
-      background: #000;
-    }
-    #video {
-        position: fixed;
-        top: 0; left: 0;
-        width: 100vw;
-        height: 100vh;
-        object-fit: cover;
-        z-index: 0;
-    }
-    canvas {
-        position: fixed;
-        top: 0; left: 0;
-        width: 100vw;
-        height: 100vh;
-        z-index: 1;
-        pointer-events: none;
-    }
-  </style>
-  <script src="https://cdn.babylonjs.com/babylon.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
-  <script src="https://cdn.jsdelivr.net/npm/protobufjs/dist/protobuf.min.js"></script>
+    <meta charset="UTF-8" />
+    <title>Hair AR</title>
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+    <style>
+        html,
+        body {
+            margin: 0;
+            padding: 0;
+            overflow: hidden;
+            background: #000;
+        }
+
+        #video {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            object-fit: cover;
+            z-index: 0;
+        }
+
+        canvas {
+            position: fixed;
+            top: 0;
+            left: 0;
+            width: 100vw;
+            height: 100vh;
+            z-index: 1;
+            pointer-events: none;
+        }
+    </style>
+    <script src="https://cdn.babylonjs.com/babylon.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
+    <script src="https://cdn.jsdelivr.net/npm/protobufjs/dist/protobuf.min.js"></script>
 </head>
+
 <body>
-  <video id="video" autoplay playsinline muted></video>
-  <canvas id="renderCanvas"></canvas>
+    <video id="video" autoplay playsinline muted></video>
+    <canvas id="renderCanvas"></canvas>
 
-  <script type="module">
-    const video = document.getElementById('video');
-    const canvas = document.getElementById('renderCanvas');
+    <script type="module">
+        const video = document.getElementById('video');
+        const canvas = document.getElementById('renderCanvas');
 
-    const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true, antialias: true, disableWebGL2Support: false, premultipliedAlpha: false });
+        const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true, antialias: true, disableWebGL2Support: false, premultipliedAlpha: false });
 
-    const scene = new BABYLON.Scene(engine);
-    scene.clearColor = new BABYLON.Color4(0, 0, 0, 0); // Transparent background
-    const camera = new BABYLON.FreeCamera("camera", new BABYLON.Vector3(0, 0, -1), scene);
-    camera.setTarget(BABYLON.Vector3.Zero());
+        const scene = new BABYLON.Scene(engine);
+        scene.clearColor = new BABYLON.Color4(0, 0, 0, 0); // Transparent background
+        const camera = new BABYLON.FreeCamera("camera", new BABYLON.Vector3(0, 0, -1), scene);
+        camera.setTarget(BABYLON.Vector3.Zero());
 
-    const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+        const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
 
-    let hairMesh = null;
+        let hairMesh = null;
 
-    // Load proto
-    const root = await protobuf.load("mesh3d.proto");
-    const Mesh3d = root.lookupType("mediapipe.face_geometry.Mesh3d");
+        // Load proto
+        const root = await protobuf.load("mesh3d.proto");
+        const Mesh3d = root.lookupType("mediapipe.face_geometry.Mesh3d");
 
-    async function loadHairMesh() {
-      const response = await fetch("model.pbbinary");
-      const arrayBuffer = await response.arrayBuffer();
-      const message = Mesh3d.decode(new Uint8Array(arrayBuffer));
+        async function loadHairMesh() {
+            const response = await fetch("model.pbbinary");
+            const arrayBuffer = await response.arrayBuffer();
+            const message = Mesh3d.decode(new Uint8Array(arrayBuffer));
 
-      if (!message.vertexBuffer || !message.indexBuffer) {
-        console.error("Model missing vertex_buffer or index_buffer");
-        return;
-      }
+            if (!message.vertexBuffer || !message.indexBuffer) {
+                console.error("Model missing vertex_buffer or index_buffer");
+                return;
+            }
 
-      const positions = [];
-      const indices = [];
-      const stride = 5;
+            const positions = [];
+            const indices = [];
+            const stride = 5;
 
-      const buffer = message.vertexBuffer;
-      for (let i = 0; i < buffer.length; i += stride) {
-        positions.push(buffer[i], buffer[i + 1], buffer[i + 2]);
-      }
+            const buffer = message.vertexBuffer;
+            for (let i = 0; i < buffer.length; i += stride) {
+                positions.push(buffer[i], buffer[i + 1], buffer[i + 2]);
+            }
 
-      for (let i = 0; i < message.indexBuffer.length; i += 3) {
-        indices.push(message.indexBuffer[i], message.indexBuffer[i + 1], message.indexBuffer[i + 2]);
-      }
+            for (let i = 0; i < message.indexBuffer.length; i += 3) {
+                indices.push(message.indexBuffer[i], message.indexBuffer[i + 1], message.indexBuffer[i + 2]);
+            }
 
-      const vertexData = new BABYLON.VertexData();
-      vertexData.positions = positions;
-      vertexData.indices = indices;
+            const vertexData = new BABYLON.VertexData();
+            vertexData.positions = positions;
+            vertexData.indices = indices;
 
-      hairMesh = new BABYLON.Mesh("hair", scene);
-      vertexData.applyToMesh(hairMesh);
+            hairMesh = new BABYLON.Mesh("hair", scene);
+            vertexData.applyToMesh(hairMesh);
 
-      hairMesh.scaling = new BABYLON.Vector3(0.1, 0.1, 0.1); // smaller scale
-    }
+            hairMesh.scaling = new BABYLON.Vector3(0.1, 0.1, 0.1); // smaller scale
+        }
 
-    await loadHairMesh();
+        await loadHairMesh();
 
-    const faceMesh = new FaceMesh({
-      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
-    });
+        const faceMesh = new FaceMesh({
+            locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+        });
 
-    faceMesh.setOptions({
-      maxNumFaces: 1,
-      refineLandmarks: true,
-      minDetectionConfidence: 0.7,
-      minTrackingConfidence: 0.7,
-    });
+        faceMesh.setOptions({
+            maxNumFaces: 1,
+            refineLandmarks: true,
+            minDetectionConfidence: 0.7,
+            minTrackingConfidence: 0.7,
+        });
 
-    faceMesh.onResults((results) => {
-      if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0 || !hairMesh) return;
 
-      const lm = results.multiFaceLandmarks[0];
+        const marker = BABYLON.MeshBuilder.CreateSphere("marker", { diameter: 0.01 }, scene);
 
-      const p1 = lm[33];   // right eye
-      const p2 = lm[263];  // left eye
-      const p3 = lm[1];    // nose tip
+        faceMesh.onResults((results) => {
+            if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0 || !hairMesh) return;
 
-      const v1 = new BABYLON.Vector3(p1.x, -p1.y, -p1.z);
-      const v2 = new BABYLON.Vector3(p2.x, -p2.y, -p2.z);
-      const v3 = new BABYLON.Vector3(p3.x, -p3.y, -p3.z);
+            const lm = results.multiFaceLandmarks[0];
 
-      const forward = BABYLON.Vector3.Normalize(BABYLON.Vector3.Cross(v2.subtract(v1), v3.subtract(v1)));
-      const up = BABYLON.Vector3.Normalize(v3.subtract(v1));
-      const right = BABYLON.Vector3.Cross(up, forward);
+            const p1 = lm[33];   // right eye
+            const p2 = lm[263];  // left eye
+            const p3 = lm[1];    // nose tip
 
-      const mat = BABYLON.Matrix.Identity();
-      mat.setRow(0, right);
-      mat.setRow(1, up);
-      mat.setRow(2, forward);
+            const v1 = new BABYLON.Vector3(p1.x, -p1.y, -p1.z);
+            const v2 = new BABYLON.Vector3(p2.x, -p2.y, -p2.z);
+            const v3 = new BABYLON.Vector3(p3.x, -p3.y, -p3.z);
 
-      hairMesh.rotationQuaternion = BABYLON.Quaternion.FromRotationMatrix(mat);
+            const forward = BABYLON.Vector3.Normalize(BABYLON.Vector3.Cross(v2.subtract(v1), v3.subtract(v1)));
+            const up = BABYLON.Vector3.Normalize(v3.subtract(v1));
+            const right = BABYLON.Vector3.Cross(up, forward);
 
-      const forehead = lm[10];
-      hairMesh.position.set(forehead.x, -forehead.y, -forehead.z);
-    });
+            const mat = BABYLON.Matrix.Identity();
+            mat.setRow(0, right);
+            mat.setRow(1, up);
+            mat.setRow(2, forward);
 
-    const mpCamera = new Camera(video, {
-      onFrame: async () => {
-        await faceMesh.send({ image: video });
-      },
-      width: 640,
-      height: 480,
-    });
+            hairMesh.rotationQuaternion = BABYLON.Quaternion.FromRotationMatrix(mat);
 
-    await mpCamera.start();
+            // Forehead position (landmark 10)
+            const center = lm[10];
 
-    engine.runRenderLoop(() => {
-      scene.render();
-    });
+            // Apply small offsets (tweak these)
+            const offsetX = 0;
+            const offsetY = 0.1;
+            const offsetZ = 0.05;
 
-    window.addEventListener('resize', () => engine.resize());
-  </script>
+            hairMesh.position.set(
+                center.x + offsetX,
+                -center.y + offsetY,
+                -center.z + offsetZ
+            );
+            marker.position.set(center.x, -center.y, -center.z);
+        });
+
+        const mpCamera = new Camera(video, {
+            onFrame: async () => {
+                await faceMesh.send({ image: video });
+            },
+            width: 640,
+            height: 480,
+        });
+
+        await mpCamera.start();
+
+        engine.runRenderLoop(() => {
+            scene.render();
+        });
+
+        window.addEventListener('resize', () => engine.resize());
+    </script>
 </body>
+
 </html>
