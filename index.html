@@ -28,8 +28,6 @@
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/camera_utils/camera_utils.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/drawing_utils/drawing_utils.js"></script>
-
-
 </head>
 
 <body>
@@ -40,9 +38,6 @@
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/protobufjs/dist/protobuf.min.js"></script>
     <script type="module">
-        //import { FaceMesh } from 'https://cdn.skypack.dev/@mediapipe/face_mesh';
-        //import { Camera } from 'https://cdn.skypack.dev/@mediapipe/camera_utils';
-
         const video = document.getElementById('video');
         const canvas = document.getElementById('renderCanvas');
 
@@ -91,9 +86,8 @@
 
             hairMesh = new BABYLON.Mesh("hair", scene);
             vertexData.applyToMesh(hairMesh);
-            hairMesh.scaling = new BABYLON.Vector3(100, 100, 100);
+            hairMesh.scaling = new BABYLON.Vector3(0.1, 0.1, 0.1); // Adjusted scaling factor
         }
-
 
         await loadHairMesh();
 
@@ -133,6 +127,11 @@
             // Set position to forehead approx (landmark 10)
             const center = lm[10];
             hairMesh.position.set(center.x, -center.y, -center.z);
+
+            // Apply proper scaling based on camera distance or a fixed factor
+            const distance = BABYLON.Vector3.Distance(camera.position, hairMesh.position);
+            const scaleFactor = Math.max(0.1, 1 / distance); // Adjust this factor as needed
+            hairMesh.scaling.set(scaleFactor, scaleFactor, scaleFactor);
         });
 
         const mpCamera = new Camera(video, {
@@ -140,6 +139,11 @@
             width: 720,
             height: 1280
         });
+
+        // Ensure the video element is properly set up and displayed
+        video.width = 720;
+        video.height = 1280;
+
         mpCamera.start();
 
         engine.runRenderLoop(() => scene.render());
