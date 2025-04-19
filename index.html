@@ -12,6 +12,7 @@
             padding: 0;
             overflow: hidden;
             background: #000;
+            font-family: sans-serif;
         }
 
         #video {
@@ -33,6 +34,26 @@
             z-index: 1;
             pointer-events: none;
         }
+
+        #controls {
+            position: fixed;
+            bottom: 10px;
+            left: 10px;
+            background: rgba(0, 0, 0, 0.6);
+            color: white;
+            padding: 10px;
+            border-radius: 8px;
+            z-index: 10;
+        }
+
+        #controls label {
+            display: block;
+            margin-bottom: 4px;
+        }
+
+        #controls input {
+            width: 80px;
+        }
     </style>
     <script src="https://cdn.babylonjs.com/babylon.js"></script>
     <script src="https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/face_mesh.js"></script>
@@ -44,14 +65,26 @@
     <video id="video" autoplay playsinline muted></video>
     <canvas id="renderCanvas"></canvas>
 
+    <div id="controls">
+        <label>Offset X: <input type="number" id="offsetX" step="0.01" value="0" /></label>
+        <label>Offset Y: <input type="number" id="offsetY" step="0.01" value="0.1" /></label>
+        <label>Offset Z: <input type="number" id="offsetZ" step="0.01" value="0.05" /></label>
+    </div>
+
     <script type="module">
         const video = document.getElementById('video');
         const canvas = document.getElementById('renderCanvas');
 
-        const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true, antialias: true, disableWebGL2Support: false, premultipliedAlpha: false });
+        const engine = new BABYLON.Engine(canvas, true, {
+            preserveDrawingBuffer: true,
+            stencil: true,
+            antialias: true,
+            disableWebGL2Support: false,
+            premultipliedAlpha: false
+        });
 
         const scene = new BABYLON.Scene(engine);
-        scene.clearColor = new BABYLON.Color4(0, 0, 0, 0); // Transparent background
+        scene.clearColor = new BABYLON.Color4(0, 0, 0, 0);
         const camera = new BABYLON.FreeCamera("camera", new BABYLON.Vector3(0, 0, -1), scene);
         camera.setTarget(BABYLON.Vector3.Zero());
 
@@ -59,7 +92,6 @@
 
         let hairMesh = null;
 
-        // Load proto
         const root = await protobuf.load("mesh3d.proto");
         const Mesh3d = root.lookupType("mediapipe.face_geometry.Mesh3d");
 
@@ -93,7 +125,7 @@
             hairMesh = new BABYLON.Mesh("hair", scene);
             vertexData.applyToMesh(hairMesh);
 
-            hairMesh.scaling = new BABYLON.Vector3(0.1, 0.1, 0.1); // smaller scale
+            hairMesh.scaling = new BABYLON.Vector3(0.1, 0.1, 0.1);
         }
 
         await loadHairMesh();
@@ -109,8 +141,7 @@
             minTrackingConfidence: 0.7,
         });
 
-
-        const marker = BABYLON.MeshBuilder.CreateSphere("marker", { diameter: 1 }, scene);
+        const marker = BABYLON.MeshBuilder.CreateSphere("marker", { diameter: 0.1 }, scene);
 
         faceMesh.onResults((results) => {
             if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0 || !hairMesh) return;
@@ -136,19 +167,19 @@
 
             hairMesh.rotationQuaternion = BABYLON.Quaternion.FromRotationMatrix(mat);
 
-            // Forehead position (landmark 10)
             const center = lm[10];
 
-            // Apply small offsets (tweak these)
-            const offsetX = 0;
-            const offsetY = 0.1;
-            const offsetZ = 0.05;
+            // Get dynamic UI input offsets
+            const offsetX = parseFloat(document.getElementById("offsetX").value) || 0;
+            const offsetY = parseFloat(document.getElementById("offsetY").value) || 0;
+            const offsetZ = parseFloat(document.getElementById("offsetZ").value) || 0;
 
             hairMesh.position.set(
                 center.x + offsetX,
                 -center.y + offsetY,
                 -center.z + offsetZ
             );
+
             marker.position.set(center.x, -center.y, -center.z);
         });
 
