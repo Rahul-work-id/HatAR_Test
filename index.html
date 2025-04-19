@@ -1,1 +1,125 @@
-<!doctype html><html lang="en"><head><meta charset="utf-8"/><link rel="icon" href="./favicon.png"/><meta name="viewport" content="width=device-width,initial-scale=1"/><meta name="theme-color" content="#000000"/><meta name="description" content="WebAR built with MindAR Studio"/><link rel="apple-touch-icon" href="./favicon.png"/><link rel="manifest" href="./manifest.json"/><title>MindAR App</title><script defer="defer" src="./static/js/main.1573730f.js"></script><link href="./static/css/main.43335a5b.css" rel="stylesheet"></head><body><noscript>You need to enable JavaScript to run this app.</noscript><div id="root"></div></body></html>
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <title>Hair AR</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0, user-scalable=no" />
+  <style>
+    html, body {
+      margin: 0; padding: 0; overflow: hidden;
+      background: #000;
+    }
+    canvas, video {
+      position: absolute;
+      top: 0; left: 0;
+      width: 100%; height: 100%;
+      object-fit: cover;
+    }
+  </style>
+</head>
+<body>
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="renderCanvas"></canvas>
+
+  <!-- BabylonJS + protobuf + MediaPipe -->
+  <script src="https://cdn.babylonjs.com/babylon.js"></script>
+  <script src="https://cdn.jsdelivr.net/npm/protobufjs/dist/protobuf.min.js"></script>
+  <script type="module">
+    import { FaceMesh } from 'https://cdn.skypack.dev/@mediapipe/face_mesh';
+    import { Camera } from 'https://cdn.skypack.dev/@mediapipe/camera_utils';
+
+    const video = document.getElementById('video');
+    const canvas = document.getElementById('renderCanvas');
+
+    const engine = new BABYLON.Engine(canvas, true, { preserveDrawingBuffer: true, stencil: true });
+    const scene = new BABYLON.Scene(engine);
+    const camera = new BABYLON.ArcRotateCamera("camera", 0, Math.PI / 2, 2, BABYLON.Vector3.Zero(), scene);
+    camera.attachControl(canvas, true);
+    camera.upperBetaLimit = Math.PI / 2;
+    camera.lowerRadiusLimit = 1;
+    camera.upperRadiusLimit = 10;
+
+    const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
+    let hairMesh = null;
+
+    const root = await protobuf.load("mesh3d.proto");
+    const Mesh3d = root.lookupType("mediapipe.face_geometry.Mesh3d");
+
+    async function loadHairMesh() {
+      const response = await fetch("model.pbbinary");
+      const arrayBuffer = await response.arrayBuffer();
+      const message = Mesh3d.decode(new Uint8Array(arrayBuffer));
+
+      const positions = [];
+      const indices = [];
+      const stride = 5;
+
+      const buffer = message.vertex_buffer;
+      for (let i = 0; i < buffer.length; i += stride) {
+        positions.push(buffer[i], buffer[i + 1], buffer[i + 2]);
+      }
+      for (let i = 0; i < message.index_buffer.length; i += 3) {
+        indices.push(message.index_buffer[i], message.index_buffer[i + 1], message.index_buffer[i + 2]);
+      }
+
+      const vertexData = new BABYLON.VertexData();
+      vertexData.positions = positions;
+      vertexData.indices = indices;
+
+      hairMesh = new BABYLON.Mesh("hair", scene);
+      vertexData.applyToMesh(hairMesh);
+      hairMesh.scaling = new BABYLON.Vector3(100, 100, 100); // tweak for your model
+    }
+
+    await loadHairMesh();
+
+    const faceMesh = new FaceMesh({
+      locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
+    });
+
+    faceMesh.setOptions({
+      maxNumFaces: 1,
+      refineLandmarks: true,
+      minDetectionConfidence: 0.7,
+      minTrackingConfidence: 0.7,
+    });
+
+    faceMesh.onResults((results) => {
+      if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0 || !hairMesh) return;
+
+      const lm = results.multiFaceLandmarks[0];
+
+      const p1 = lm[33];   // right eye
+      const p2 = lm[263];  // left eye
+      const p3 = lm[1];    // nose tip
+
+      // Convert to Babylon Vector3
+      const v1 = new BABYLON.Vector3(p1.x, -p1.y, -p1.z);
+      const v2 = new BABYLON.Vector3(p2.x, -p2.y, -p2.z);
+      const v3 = new BABYLON.Vector3(p3.x, -p3.y, -p3.z);
+
+      // Compute vectors for orientation
+      const forward = BABYLON.Vector3.Normalize(BABYLON.Vector3.Cross(v2.subtract(v1), v3.subtract(v1)));
+      const up = BABYLON.Vector3.Normalize(v3.subtract(v1));
+      const right = BABYLON.Vector3.Cross(up, forward);
+
+      const mat = BABYLON.Matrix.FromXYZAxes(right, up, forward);
+      hairMesh.rotationQuaternion = BABYLON.Quaternion.FromRotationMatrix(mat);
+
+      // Set position to forehead approx (landmark 10)
+      const center = lm[10];
+      hairMesh.position.set(center.x, -center.y, -center.z);
+    });
+
+    const mpCamera = new Camera(video, {
+      onFrame: async () => await faceMesh.send({ image: video }),
+      width: 720,
+      height: 1280
+    });
+    mpCamera.start();
+
+    engine.runRenderLoop(() => scene.render());
+    window.addEventListener('resize', () => engine.resize());
+  </script>
+</body>
+</html>

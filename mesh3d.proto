@@ -1,0 +1,18 @@
+syntax = "proto2";
+
+package mediapipe.face_geometry;
+
+message Mesh3d {
+  enum VertexType {
+    VERTEX_PT = 0;
+  }
+
+  enum PrimitiveType {
+    TRIANGLE = 0;
+  }
+
+  optional VertexType vertex_type = 1;
+  optional PrimitiveType primitive_type = 2;
+  repeated float vertex_buffer = 3;
+  repeated uint32 index_buffer = 4;
+}
