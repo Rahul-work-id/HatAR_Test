@@ -69,12 +69,16 @@
         <label>Offset X: <input type="number" id="offsetX" step="0.01" value="0" /></label>
         <label>Offset Y: <input type="number" id="offsetY" step="0.01" value="0.1" /></label>
         <label>Offset Z: <input type="number" id="offsetZ" step="0.01" value="0.05" /></label>
+        <hr style="margin: 8px 0; border-color: #888;">
+        <label>Rotation X (deg): <input type="number" id="rotX" step="1" value="0" /></label>
+        <label>Rotation Y (deg): <input type="number" id="rotY" step="1" value="0" /></label>
+        <label>Rotation Z (deg): <input type="number" id="rotZ" step="1" value="0" /></label>
     </div>
 
     <script type="module">
         const video = document.getElementById('video');
         const canvas = document.getElementById('renderCanvas');
-    
+
         const engine = new BABYLON.Engine(canvas, true, {
             preserveDrawingBuffer: true,
             stencil: true,
@@ -82,130 +86,137 @@
             disableWebGL2Support: false,
             premultipliedAlpha: false
         });
-    
+
         const scene = new BABYLON.Scene(engine);
         scene.clearColor = new BABYLON.Color4(0, 0, 0, 0);
         const camera = new BABYLON.FreeCamera("camera", new BABYLON.Vector3(0, 0, -1), scene);
         camera.setTarget(BABYLON.Vector3.Zero());
-    
+
         const light = new BABYLON.HemisphericLight("light", new BABYLON.Vector3(0, 1, 0), scene);
-    
+
         let hairMesh = null;
-    
+
         const root = await protobuf.load("mesh3d.proto");
         const Mesh3d = root.lookupType("mediapipe.face_geometry.Mesh3d");
-    
+
         async function loadHairMesh() {
             const response = await fetch("model.pbbinary");
             const arrayBuffer = await response.arrayBuffer();
             const message = Mesh3d.decode(new Uint8Array(arrayBuffer));
-    
+
             if (!message.vertexBuffer || !message.indexBuffer) {
                 console.error("Model missing vertex_buffer or index_buffer");
                 return;
             }
-    
+
             const positions = [];
             const indices = [];
             const stride = 5;
-    
+
             const buffer = message.vertexBuffer;
             for (let i = 0; i < buffer.length; i += stride) {
                 positions.push(buffer[i], buffer[i + 1], buffer[i + 2]);
             }
-    
+
             for (let i = 0; i < message.indexBuffer.length; i += 3) {
                 indices.push(message.indexBuffer[i], message.indexBuffer[i + 1], message.indexBuffer[i + 2]);
             }
-    
+
             const vertexData = new BABYLON.VertexData();
             vertexData.positions = positions;
             vertexData.indices = indices;
-    
+
             hairMesh = new BABYLON.Mesh("hair", scene);
             vertexData.applyToMesh(hairMesh);
-    
+
             hairMesh.scaling = new BABYLON.Vector3(0.1, 0.1, 0.1);
         }
-    
+
         await loadHairMesh();
-    
+
         const faceMesh = new FaceMesh({
             locateFile: (file) => `https://cdn.jsdelivr.net/npm/@mediapipe/face_mesh/${file}`,
         });
-    
+
         faceMesh.setOptions({
             maxNumFaces: 1,
             refineLandmarks: true,
             minDetectionConfidence: 0.7,
             minTrackingConfidence: 0.7,
         });
-    
+
         const marker = BABYLON.MeshBuilder.CreateSphere("marker", { diameter: 0.1 }, scene);
-    
+
         faceMesh.onResults((results) => {
             if (!results.multiFaceLandmarks || results.multiFaceLandmarks.length === 0 || !hairMesh) return;
-    
+
             const lm = results.multiFaceLandmarks[0];
-    
+
             const p1 = lm[33];   // right eye
             const p2 = lm[263];  // left eye
             const p3 = lm[1];    // nose tip
-    
+
             const v1 = new BABYLON.Vector3(p1.x, -p1.y, -p1.z);
             const v2 = new BABYLON.Vector3(p2.x, -p2.y, -p2.z);
             const v3 = new BABYLON.Vector3(p3.x, -p3.y, -p3.z);
-    
+
             const forward = BABYLON.Vector3.Normalize(BABYLON.Vector3.Cross(v2.subtract(v1), v3.subtract(v1)));
             const up = BABYLON.Vector3.Normalize(v3.subtract(v1));
             const right = BABYLON.Vector3.Cross(up, forward);
-    
+
             const mat = BABYLON.Matrix.Identity();
             mat.setRow(0, right);
             mat.setRow(1, up);
             mat.setRow(2, forward);
-    
-            hairMesh.rotationQuaternion = BABYLON.Quaternion.FromRotationMatrix(mat);
-    
-            const center = lm[10];
-    
-            // Get dynamic UI input offsets
+
+            const detectedRotation = BABYLON.Quaternion.FromRotationMatrix(mat);
+
+            // Get rotation offset values
+            const rotX = BABYLON.Tools.ToRadians(parseFloat(document.getElementById("rotX").value) || 0);
+            const rotY = BABYLON.Tools.ToRadians(parseFloat(document.getElementById("rotY").value) || 0);
+            const rotZ = BABYLON.Tools.ToRadians(parseFloat(document.getElementById("rotZ").value) || 0);
+
+            const rotationOffset = BABYLON.Quaternion.RotationYawPitchRoll(rotY, rotX, rotZ);
+            hairMesh.rotationQuaternion = rotationOffset.multiply(detectedRotation);
+
+            // Get position offset values
             const offsetX = parseFloat(document.getElementById("offsetX").value) || 0;
             const offsetY = parseFloat(document.getElementById("offsetY").value) || 0;
             const offsetZ = parseFloat(document.getElementById("offsetZ").value) || 0;
-    
+
+            const center = lm[10];
+
             hairMesh.position.set(
                 center.x + offsetX,
                 -center.y + offsetY,
                 -center.z + offsetZ
             );
-    
+
             marker.position.set(center.x, -center.y, -center.z);
         });
-    
+
         const mpCamera = new Camera(video, {
             onFrame: async () => {
                 await faceMesh.send({ image: video });
             },
         });
-    
-        // Wait for metadata to be available, then sync dimensions
+
         video.onloadedmetadata = () => {
             video.width = video.videoWidth;
             video.height = video.videoHeight;
             canvas.width = video.videoWidth;
             canvas.height = video.videoHeight;
         };
-    
+
         await mpCamera.start();
-    
+
         engine.runRenderLoop(() => {
             scene.render();
         });
-    
+
         window.addEventListener('resize', () => engine.resize());
     </script>
-    
+
 </body>
 
 </html>
