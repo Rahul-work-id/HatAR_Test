@@ -121,8 +121,14 @@
             const up = BABYLON.Vector3.Normalize(v3.subtract(v1));
             const right = BABYLON.Vector3.Cross(up, forward);
 
-            const mat = BABYLON.Matrix.FromXYZAxes(right, up, forward);
+            // Create a rotation matrix manually from the 3 axes
+            const mat = BABYLON.Matrix.Identity();
+            mat.setRow(0, right);
+            mat.setRow(1, up);
+            mat.setRow(2, forward);
+
             hairMesh.rotationQuaternion = BABYLON.Quaternion.FromRotationMatrix(mat);
+
 
             // Set position to forehead approx (landmark 10)
             const center = lm[10];
